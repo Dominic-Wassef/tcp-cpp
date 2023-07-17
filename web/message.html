@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Home</title>
+    <title>Message</title>
     <link
       rel="stylesheet"
       href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
@@ -21,14 +21,8 @@
         </ul>
       </div>
     </nav>
-    <h1>This is the Home Page</h1>
-    <form action="/message" method="POST">
-      <div class="form-group">
-        <label for="msg">Enter a message:</label>
-        <input type="text" id="msg" name="msg" class="form-control" />
-      </div>
-      <input type="submit" value="Submit" class="btn btn-primary" />
-    </form>
+    <h1>Your message has been received!</h1>
+    <p>This is your message: {{message}}</p>
     <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
   </body>
