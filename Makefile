@@ -1,15 +1,14 @@
 # Variables
-CXX = g++
-CXXFLAGS = -Wall -g
+PERL = perl
 
 # Targets
 all: server
 
-server: src/main.cpp
-	$(CXX) $(CXXFLAGS) -o server src/main.cpp
+server:
+	$(PERL) src/perl/compile.pl
 
 stop:
-	perl stop_server.pl
+	$(PERL) src/perl/stop_server.pl
 
-clean: 
-	rm -f server
+clean:
+	$(PERL) src/perl/clean.pl
