@@ -1,14 +1,33 @@
-#include <arpa/inet.h> // For sockaddr_in and inet_ntoa
-#include <cstring>     // For memset
+#include <arpa/inet.h>
+#include <fstream>
 #include <iostream>
-#include <netinet/in.h>
+#include <sstream>
 #include <string>
-#include <sstream> // For parsing HTTP request
+#include <cstring>
+#include <netinet/in.h>
 #include <sys/socket.h>
-#include <unistd.h> // For close
+#include <unistd.h>
 
 const int BUFFER_SIZE = 1024;
-const int PORT = 4000;
+const int PORT = 8080;
+const std::string WEB_PAGES_PATH = "./webPages/";
+
+std::string loadHtmlFile(const std::string &path)
+{
+  std::ifstream file(path);
+  if (file)
+  {
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    file.close();
+    return buffer.str();
+  }
+  else
+  {
+    std::cerr << "Failed to open file at: " << path << "\n";
+    return "";
+  }
+}
 
 int main()
 {
@@ -17,28 +36,23 @@ int main()
   int addrlen = sizeof(address);
   char buffer[BUFFER_SIZE] = {0};
 
-  // Creating socket
   if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
   {
     std::cerr << "Failed to create socket\n";
     return -1;
   }
 
-  // Configure server address structure
   address.sin_family = AF_INET;
   address.sin_addr.s_addr = INADDR_ANY;
   address.sin_port = htons(PORT);
-
   memset(address.sin_zero, '\0', sizeof(address.sin_zero));
 
-  // Bind the socket
   if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0)
   {
     std::cerr << "Failed to bind socket\n";
     return -1;
   }
 
-  // Listen for connections
   if (listen(server_fd, 3) < 0)
   {
     std::cerr << "Listen failed\n";
@@ -48,84 +62,61 @@ int main()
   while (true)
   {
     std::cout << "Waiting for connection....\n";
-
-    // Accept a connection
-    if ((new_socket = accept(server_fd, (struct sockaddr *)&address,
-                             (socklen_t *)&addrlen)) < 0)
+    if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0)
     {
       std::cerr << "Accept failed\n";
       return -1;
     }
-
     std::cout << "Connected with client at IP: " << inet_ntoa(address.sin_addr)
               << " and port: " << ntohs(address.sin_port) << "\n";
 
-    // Read from the socket
-    recv(new_socket, buffer, BUFFER_SIZE, 0);
+    read(new_socket, buffer, BUFFER_SIZE);
     std::cout << "Received from client: " << buffer << "\n";
 
-    // Parse the request and generate a response
     std::string response;
     std::istringstream request(buffer);
     std::string requestMethod;
     std::string requestUrl;
-
-    // Parse the request line
     request >> requestMethod >> requestUrl;
 
+    std::string htmlContent;
     if (requestUrl == "/")
     {
-      // Respond with a page that has a button linking to /home
-      response = "HTTP/1.1 200 OK\r\n"
-                 "Content-Type: text/html\r\n"
-                 "Connection: close\r\n\r\n"
-                 "<!DOCTYPE html>\n"
-                 "<html>\n"
-                 "<body>\n"
-                 "<button onclick=\"location.href='/home'\" type=\"button\">\n"
-                 "Go to the next page\n"
-                 "</button>\n"
-                 "</body>\n"
-                 "</html>\n";
+      htmlContent = loadHtmlFile(WEB_PAGES_PATH + "index.html");
     }
     else if (requestUrl == "/home")
     {
-      // Respond with a different page
-      response = "HTTP/1.1 200 OK\r\n"
-                 "Content-Type: text/html\r\n"
-                 "Connection: close\r\n\r\n"
-                 "<!DOCTYPE html>\n"
-                 "<html>\n"
-                 "<body>\n"
-                 "<h1>This is the next page</h1>\n"
-                 "</body>\n"
-                 "</html>\n";
+      htmlContent = loadHtmlFile(WEB_PAGES_PATH + "home.html");
+    }
+    else if (requestUrl == "/message")
+    {
+      htmlContent = loadHtmlFile(WEB_PAGES_PATH + "message.html");
     }
     else
     {
-      // For any other URL, respond with a 404 not found status
-      response = "HTTP/1.1 404 Not Found\r\n"
-                 "Content-Type: text/html\r\n"
-                 "Connection: close\r\n\r\n"
-                 "<!DOCTYPE html>\n"
-                 "<html>\n"
-                 "<body>\n"
-                 "<h1>Page not found</h1>\n"
-                 "</body>\n"
-                 "</html>\n";
+      htmlContent = loadHtmlFile(WEB_PAGES_PATH + "notfound.html");
     }
 
-    std::cout << "RequestMethod: " << requestMethod << "\n";
-    std::cout << "RequestUrl: " << requestUrl << "\n";
+    if (htmlContent.empty())
+    {
+      htmlContent = "<h1>500 Internal Server Error</h1>";
+      response = "HTTP/1.1 500 Internal Server Error\r\n"
+                 "Content-Type: text/html\r\n"
+                 "Connection: close\r\n\r\n" +
+                 htmlContent;
+    }
+    else
+    {
+      response = "HTTP/1.1 200 OK\r\n"
+                 "Content-Type: text/html\r\n"
+                 "Connection: close\r\n\r\n" +
+                 htmlContent;
+    }
 
-    // Send the response to the client
     send(new_socket, response.c_str(), response.size(), 0);
-
-    // Close the new socket
     close(new_socket);
   }
 
-  // Close the server socket
   close(server_fd);
 
   return 0;
