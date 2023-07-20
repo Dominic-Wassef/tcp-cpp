@@ -5,10 +5,10 @@ PERL = perl
 all: server
 
 server:
-	$(PERL) src/perl/compile.pl
+	$(PERL) perl/compile.pl
 
 stop:
-	$(PERL) src/perl/stop_server.pl
+	$(PERL) perl/stop_server.pl
 
 clean:
-	$(PERL) src/perl/clean.pl
+	$(PERL) perl/clean.pl
