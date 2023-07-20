@@ -1,4 +1,3 @@
-#include "request_handler.h"
 #include <arpa/inet.h>
 #include <fstream>
 #include <iostream>
@@ -7,9 +6,42 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <array>
+#include <memory>
+#include <vector>
 
 const int BUFFER_SIZE = 8192;
-const std::string WEB_PAGES_PATH = "./web/";
+const std::string WEB_PAGES_PATH = "./perl/";
+
+class MessageService
+{
+public:
+  void addMessage(const std::string &message)
+  {
+    messages.push_back(message);
+  }
+
+private:
+  std::vector<std::string> messages;
+};
+
+class RequestHandler
+{
+public:
+  RequestHandler(int new_socket, MessageService &messageService);
+  ~RequestHandler();
+
+  void handleRequest();
+  std::string parsePostData(char buffer[], int valread);
+  std::string generateResponse(std::string requestUrl, std::string postData);
+  void sendResponse(std::string response);
+  std::string executePerlScript(const std::string &path, const std::string &postData);
+  std::string loadHtmlFile(const std::string &path);
+
+private:
+  int new_socket;
+  MessageService &messageService;
+};
 
 RequestHandler::RequestHandler(int new_socket, MessageService &messageService)
     : new_socket(new_socket), messageService(messageService) {}
@@ -101,11 +133,11 @@ std::string RequestHandler::generateResponse(std::string requestUrl, std::string
   std::string htmlContent;
   if (requestUrl == "/")
   {
-    htmlContent = loadHtmlFile(WEB_PAGES_PATH + "index.html");
+    htmlContent = executePerlScript(WEB_PAGES_PATH + "index.pl", postData);
   }
   else if (requestUrl == "/home")
   {
-    htmlContent = loadHtmlFile(WEB_PAGES_PATH + "home.html");
+    htmlContent = executePerlScript(WEB_PAGES_PATH + "home.pl", postData);
   }
   else if (requestUrl == "/message")
   {
@@ -116,27 +148,17 @@ std::string RequestHandler::generateResponse(std::string requestUrl, std::string
       {
         std::string message = postData.substr(prefixLength);
         messageService.addMessage(message);
-        htmlContent = loadHtmlFile(WEB_PAGES_PATH + "message.html");
-
-        size_t pos = htmlContent.find("{{message}}");
-        if (pos != std::string::npos)
-        {
-          htmlContent.replace(pos, 11, message);
-        }
-        else
-        {
-          std::cerr << "Failed to find {{message}} placeholder in the HTML content.\n";
-        }
+        htmlContent = executePerlScript(WEB_PAGES_PATH + "message.pl", postData);
       }
     }
     else
     {
-      htmlContent = loadHtmlFile(WEB_PAGES_PATH + "home.html");
+      htmlContent = executePerlScript(WEB_PAGES_PATH + "home.pl", postData);
     }
   }
   else
   {
-    htmlContent = loadHtmlFile(WEB_PAGES_PATH + "notfound.html");
+    htmlContent = executePerlScript(WEB_PAGES_PATH + "notfound.pl", postData);
   }
 
   if (htmlContent.empty())
@@ -159,6 +181,31 @@ std::string RequestHandler::generateResponse(std::string requestUrl, std::string
 void RequestHandler::sendResponse(std::string response)
 {
   send(new_socket, response.c_str(), response.size(), 0);
+}
+
+std::string RequestHandler::executePerlScript(const std::string &path, const std::string &postData)
+{
+  std::string command = "perl " + path;
+  if (!postData.empty())
+  {
+    command += " " + postData;
+  }
+
+  std::array<char, 128> buffer;
+  std::string result;
+
+  std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
+  if (!pipe)
+  {
+    throw std::runtime_error("popen() failed!");
+  }
+
+  while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
+  {
+    result += buffer.data();
+  }
+
+  return result;
 }
 
 std::string RequestHandler::loadHtmlFile(const std::string &path)
